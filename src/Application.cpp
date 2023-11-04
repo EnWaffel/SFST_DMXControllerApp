@@ -25,6 +25,12 @@
 #define DMX_RGB 3
 #define DMX_DRGB 4
 
+#define CMD_SYNC_MODE -1
+#define CMD_DMX_CHANNELS -2
+#define CMD_DMX_MODE -3
+#define CMD_SMOOTHING -4
+#define CMD_SMOOTHING_SPEED -5
+
 static GLFWwindow* window;
 static HWND nativeWindow;
 static int windowWidth;
@@ -39,6 +45,8 @@ static bool syncMode = true;
 static int dmxChannels = DMX_RGB;
 static int dmxChannelsSelected = 0;
 static bool dmxEnabled = false;
+static bool smoothing = false;
+static float smoothingSpeed = 0.001f;
 
 #define WIDTH 500
 #define HEIGHT 400
@@ -221,7 +229,7 @@ void Application::Init()
 			comm.WriteByte(1);
 
 			std::string str;
-			str.append(std::to_string(-1));
+			str.append(std::to_string(CMD_SYNC_MODE));
 			str.push_back(':');
 			str.append(std::to_string(syncMode));
 
@@ -229,14 +237,38 @@ void Application::Init()
 			comm.WriteString(str);
 		}
 
-		if (autoUpdate) ImGui::BeginDisabled();
+		if (ImGui::Checkbox("Smoothing", &smoothing))
+		{
+			comm.WriteByte(1);
+
+			std::string str;
+			str.append(std::to_string(CMD_SMOOTHING));
+			str.push_back(':');
+			str.append(std::to_string(smoothing));
+
+			str.push_back(';');
+			comm.WriteString(str);
+		}
+
+		if (ImGui::SliderFloat("Smoothing Speed", &smoothingSpeed, 0.001f, 0.35f))
+		{
+			comm.WriteByte(1);
+
+			std::string str;
+			str.append(std::to_string(CMD_SMOOTHING_SPEED));
+			str.push_back(':');
+			str.append(std::to_string(smoothingSpeed));
+
+			str.push_back(';');
+			comm.WriteString(str);
+		}
 
 		if (ImGui::Checkbox("DMX", &dmxEnabled))
 		{
 			comm.WriteByte(1);
 
 			std::string str;
-			str.append(std::to_string(-3));
+			str.append(std::to_string(CMD_DMX_MODE));
 			str.push_back(':');
 			str.append(std::to_string(dmxEnabled));
 
@@ -264,7 +296,7 @@ void Application::Init()
 			comm.WriteByte(1);
 
 			std::string str;
-			str.append(std::to_string(-2));
+			str.append(std::to_string(CMD_DMX_CHANNELS));
 			str.push_back(':');
 			str.append(std::to_string(dmxChannels));
 
