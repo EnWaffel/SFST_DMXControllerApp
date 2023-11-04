@@ -330,6 +330,11 @@ void Application::UpdateDMXColors()
 
 void Application::ConnectToArduino()
 {
+	if (usableUSBPorts.size() < 1)
+	{
+		connectedStatus = CONN_STATUS_NOT_CONNECTED;
+		return;
+	}
 	Result result = comm.Open(SerialComm::GetDevice(usableUSBPorts.at(selectedUSBPortIndex)), 115200);
 	if (result == RESULT_ERROR)
 	{
