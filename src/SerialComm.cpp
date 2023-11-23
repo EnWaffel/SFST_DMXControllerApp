@@ -133,5 +133,5 @@ Result SerialComm::WriteDouble(double v)
 
 Result SerialComm::WriteString(const std::string& v)
 {
-    return Write((uint8_t*)v.c_str(), sizeof(v.c_str()));
+    return Write((uint8_t*)v.c_str(), strlen(v.c_str()));
 }

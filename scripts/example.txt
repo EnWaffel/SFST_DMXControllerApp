@@ -1,0 +1,6 @@
+DMX_setColor(r, g, b) -- Setze eine Farbe von 0 bis 255. (Rot, Grün, Blau)
+DMX_setBrightness(d) -- Setze die Hälligkeit von 0 bis 255.
+DMX_getChannels() -- Gibt die Anzahl der DMX Kanäle zurück.
+lerp(a, b, f) -- Lineare Interpolation.
+appRunning() -- Gibt zurück, ob das Skript aktiv ist. Benutze dies in while-loops.
+wait(s) -- Warte s sekunden.

@@ -17,19 +17,10 @@
 #include "SerialComm.h"
 #include <thread>
 #include <chrono>
+#include "Script.h"
+#include <filesystem>
 
-#define CONN_STATUS_NOT_CONNECTED 0
-#define CONN_STATUS_CONNECTING 1
-#define CONN_STATUS_CONNECTED 2
-
-#define DMX_RGB 3
-#define DMX_DRGB 4
-
-#define CMD_SYNC_MODE -1
-#define CMD_DMX_CHANNELS -2
-#define CMD_DMX_MODE -3
-#define CMD_SMOOTHING -4
-#define CMD_SMOOTHING_SPEED -5
+Application* Application::INSTANCE = nullptr;
 
 static GLFWwindow* window;
 static HWND nativeWindow;
@@ -40,18 +31,65 @@ static bool autoUpdate = false;
 static std::vector<std::string> usableUSBPorts;
 int selectedUSBPortIndex = 0;
 int connectedStatus = 0;
-static SerialComm comm;
 static bool syncMode = true;
-static int dmxChannels = DMX_RGB;
 static int dmxChannelsSelected = 0;
 static bool dmxEnabled = false;
 static bool smoothing = false;
 static float smoothingSpeed = 0.001f;
+static Script* curScript = nullptr;
+static int scriptIndex = 0;
+static std::vector<std::string> scriptPaths;
+static std::thread* scriptThread;
+
+namespace fs = std::filesystem;
 
 #define WIDTH 500
-#define HEIGHT 400
+#define HEIGHT 600
 #define WIDTHf 500.0f
-#define HEIGHTf 400.0f
+#define HEIGHTf 600.0f
+
+std::string GetFileExtension(const std::string& filePath) {
+	fs::path file_path(filePath);
+
+	std::string file_extension = file_path.extension().string();
+
+	if (!file_extension.empty()) {
+		if (file_extension[0] == '.') {
+			file_extension = file_extension.substr(1);
+		}
+		return file_extension;
+	}
+	else {
+		return "";
+	}
+}
+
+std::string ToLower(const std::string& input) {
+	std::string result = input;
+	for (char& c : result) {
+		c = std::tolower(c);
+	}
+	return result;
+}
+
+void ScanScripts()
+{
+	try {
+		for (const auto& entry : fs::directory_iterator("scripts")) {
+			if (fs::is_regular_file(entry)) {
+				std::string ext = ToLower(GetFileExtension(entry.path().string()));
+				if (entry.path().string() == "scripts\\dmx.lua" || entry.path().string() == "scripts\\example.lua") continue;
+				if (ext == "lua")
+				{
+					scriptPaths.push_back(entry.path().string());
+				}
+			}
+		}
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+	}
+}
 
 void ScanUSBPorts()
 {
@@ -162,6 +200,8 @@ void Application::Init()
 	glfwSetWindowSize(window, WIDTH + 1, HEIGHT + 1);
 	glfwSetWindowSize(window, WIDTH, HEIGHT);
 
+	ScanScripts();
+
 	while (!glfwWindowShouldClose(window))
 	{
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -221,6 +261,11 @@ void Application::Init()
 		ImGui::NewLine();
 		ImGui::Separator();
 		ImGui::NewLine();
+
+		if (connectedStatus == CONN_STATUS_NOT_CONNECTED)
+		{
+			ImGui::BeginDisabled();
+		}
 
 		//ImGui::Checkbox(u8"Automatisch Senden", &autoUpdate);
 
@@ -306,10 +351,8 @@ void Application::Init()
 
 		if (ImGui::Button("Farben Senden"))
 		{
-			UpdateDMXColors();
+			UpdateDMXColors(nullptr);
 		}
-
-		if (autoUpdate) ImGui::EndDisabled();
 
 		if (dmxChannels == DMX_DRGB)
 		{
@@ -320,7 +363,48 @@ void Application::Init()
 			ImGui::SetColorEditOptions(ImGuiColorEditFlags_Uint8 | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_PickerHueBar);
 		}
 		ImGui::SetNextItemWidth(200);
-		ImGui::ColorPicker4("##colorpicker", (float*)&dmxColor, ImGuiColorEditFlags_NoInputs);
+		if (ImGui::ColorPicker4("##colorpicker", (float*)&dmxColor, ImGuiColorEditFlags_NoInputs))
+		{
+		}
+
+		ImGui::Separator();
+
+		std::string s;
+		for (std::string path : scriptPaths)
+		{
+			s.append(path);
+			s.push_back('\0');
+		}
+		ImGui::Combo("Skript", &scriptIndex, s.c_str());
+		ImGui::SameLine();
+		if (ImGui::Button("Skript Starten"))
+		{
+			if (curScript != nullptr)
+			{
+				running = false;
+				scriptThread->join();
+				delete curScript;
+				delete scriptThread;
+			}
+			running = true;
+			scriptThread = new std::thread([]() {
+				curScript = new Script(scriptPaths.at(scriptIndex));
+			});
+		}
+
+		ImGui::BeginChild("##script_actions", ImVec2(WIDTH - 15, 100), true);
+
+		for (std::string action : scriptActions)
+		{
+			ImGui::TextWrapped(action.c_str());
+		}
+
+		ImGui::EndChild();
+
+		if (connectedStatus == CONN_STATUS_NOT_CONNECTED)
+		{
+			ImGui::EndDisabled();
+		}
 
 		ImGui::End();
 
@@ -334,26 +418,62 @@ void Application::Init()
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
 	glfwTerminate();
+	running = false;
 	if (connectedStatus == CONN_STATUS_CONNECTED)
 	{
 		comm.Close();
 	}
+	if (curScript != nullptr)
+	{
+		delete curScript;
+		scriptThread->join();
+		delete scriptThread;
+	}
 }
 
-void Application::UpdateDMXColors()
+void Application::UpdateDMXColors(float* colors)
 {
 	if (connectedStatus == CONN_STATUS_CONNECTED)
 	{
-		comm.WriteByte(1);
-
 		std::string str;
-		str.append(std::to_string((int)(dmxColor[0] * 255.0f)));
+		str.push_back(1);
+
+		if (colors != nullptr)
+		{
+			str.append(std::to_string((int)(colors[0] * 255.0f)));
+		}
+		else
+		{
+			str.append(std::to_string((int)(dmxColor[0] * 255.0f)));
+		}
 		str.push_back(':');
-		str.append(std::to_string((int)(dmxColor[1] * 255.0f)));
+		if (colors != nullptr)
+		{
+			str.append(std::to_string((int)(colors[1] * 255.0f)));
+		}
+		else
+		{
+			str.append(std::to_string((int)(dmxColor[1] * 255.0f)));
+		}
 		str.push_back(':');
-		str.append(std::to_string((int)(dmxColor[2] * 255.0f)));
+		if (colors != nullptr)
+		{
+			str.append(std::to_string((int)(colors[2] * 255.0f)));
+		}
+		else
+		{
+			str.append(std::to_string((int)(dmxColor[2] * 255.0f)));
+		}
 		str.push_back(':');
-		str.append(std::to_string((int)(dmxColor[3] * 255.0f)));
+		if (colors != nullptr)
+		{
+			str.append(std::to_string((int)(colors[3] * 255.0f)));
+		}
+		else
+		{
+			str.append(std::to_string((int)(dmxColor[3] * 255.0f)));
+		}
+
 
 		str.push_back(';');
 		comm.WriteString(str);
