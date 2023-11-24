@@ -84,6 +84,19 @@ static int L_wait(lua_State* L)
 	return 0;
 }
 
+static int L_DMX_setId(lua_State* L)
+{
+	int id = luaL_checknumber(L, 1);
+	std::string str;
+	str.push_back(1);
+	str.append(std::to_string(CMD_TARGET_ID));
+	str.push_back(':');
+	str.append(std::to_string(id));
+	str.push_back(';');
+	Application::INSTANCE->comm.WriteString(str);
+	return 0;
+}
+
 void DMXLuaLib::LoadLib(lua_State* L)
 {
 	lua_pushcfunction(L, L_appRunning);
@@ -104,4 +117,6 @@ void DMXLuaLib::LoadLib(lua_State* L)
 	lua_setglobal(L, "DMX_setBrightness");
 	lua_pushcfunction(L, L_DMX_getChannels);
 	lua_setglobal(L, "DMX_getChannels");
+	lua_pushcfunction(L, L_DMX_setId);
+	lua_setglobal(L, "DMX_setId");
 }

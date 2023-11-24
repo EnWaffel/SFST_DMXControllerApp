@@ -4,3 +4,4 @@ DMX_getChannels() -- Gibt die Anzahl der DMX Kanäle zurück.
 lerp(a, b, f) -- Lineare Interpolation.
 appRunning() -- Gibt zurück, ob das Skript aktiv ist. Benutze dies in while-loops.
 wait(s) -- Warte s sekunden.
+DMX_setId(i) -- Setzt die Id des angesteuerten Lichtes.

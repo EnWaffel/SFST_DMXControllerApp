@@ -40,6 +40,7 @@ static Script* curScript = nullptr;
 static int scriptIndex = 0;
 static std::vector<std::string> scriptPaths;
 static std::thread* scriptThread;
+static int targetId = 0;
 
 namespace fs = std::filesystem;
 
@@ -349,7 +350,20 @@ void Application::Init()
 			comm.WriteString(str);
 		}
 
-		if (ImGui::Button("Farben Senden"))
+		ImGui::SetNextItemWidth(80);
+		ImGui::InputInt("Id", &targetId);
+		if (ImGui::Button("Licht Id Setzen"))
+		{
+			std::string str;
+			str.push_back(1);
+			str.append(std::to_string(CMD_TARGET_ID));
+			str.push_back(':');
+			str.append(std::to_string(targetId));
+			str.push_back(';');
+			Application::INSTANCE->comm.WriteString(str);
+		}
+
+		if (ImGui::Button("Farben Setzen"))
 		{
 			UpdateDMXColors(nullptr);
 		}

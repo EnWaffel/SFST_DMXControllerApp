@@ -14,6 +14,7 @@
 #define CMD_DMX_MODE -3
 #define CMD_SMOOTHING -4
 #define CMD_SMOOTHING_SPEED -5
+#define CMD_TARGET_ID -6
 
 class Application
 {
